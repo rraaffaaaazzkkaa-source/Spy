@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PANEL KONTROL</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #0d0d0d; 
+            font-family: 'Courier New', monospace;
+            color: #00ffaa;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .header {
+            border-bottom: 1px solid #00ffaa33;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .header h1 {
+            font-weight: 300;
+            font-size: 22px;
+            letter-spacing: 4px;
+        }
+        .status-badge {
+            background: #00ffaa22;
+            padding: 6px 18px;
+            border-radius: 30px;
+            font-size: 12px;
+            border: 1px solid #00ffaa55;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+        .video-container {
+            background: #111;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+            overflow: hidden;
+            position: relative;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #liveFeed {
+            width: 100%;
+            background: #000;
+            display: block;
+            min-height: 400px;
+            object-fit: cover;
+        }
+        .video-overlay {
+            position: absolute;
+            bottom: 10px;
+            left: 15px;
+            font-size: 11px;
+            color: #666;
+            background: #00000088;
+            padding: 4px 12px;
+            border-radius: 6px;
+        }
+        .panel {
+            background: #111;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+            padding: 20px;
+        }
+        .panel h3 {
+            font-weight: 300;
+            letter-spacing: 2px;
+            font-size: 14px;
+            border-bottom: 1px solid #2a2a2a;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            color: #888;
+        }
+        .log {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.8;
+            color: #aaa;
+        }
+        .log .entry {
+            border-bottom: 1px solid #1a1a1a;
+            padding: 4px 0;
+        }
+        .log .entry .time { color: #555; margin-right: 10px; }
+        .log .entry .success { color: #00ffaa; }
+        .log .entry .info { color: #66ccff; }
+        .log .entry .error { color: #ff4444; }
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            background: transparent;
+            border: 1px solid #333;
+            color: #aaa;
+            padding: 8px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            transition: all 0.3s;
+            letter-spacing: 1px;
+        }
+        .btn:hover {
+            border-color: #00ffaa;
+            color: #00ffaa;
+            background: #00ffaa11;
+        }
+        .btn.danger:hover {
+            border-color: #ff4444;
+            color: #ff4444;
+            background: #ff444411;
+        }
+        .btn.active { border-color: #00ffaa; color: #00ffaa; background: #00ffaa22; }
+        .target-info {
+            font-size: 13px;
+            color: #888;
+            margin-top: 10px;
+            padding: 10px;
+            background: #0a0a0a;
+            border-radius: 6px;
+            border-left: 3px solid #00ffaa;
+        }
+        .target-info strong { color: #fff; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #1a1a1a; }
+        ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+        .footer {
+            margin-top: 30px;
+            font-size: 11px;
+            color: #333;
+            text-align: center;
+            border-top: 1px solid #1a1a1a;
+            padding-top: 15px;
+            letter-spacing: 1px;
+        }
+        #snapshotContainer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        #snapshotContainer img {
+            width: 60px;
+            height: 45px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #2a2a2a;
+        }
+        #frameCounter {
+            color: #555;
+            font-size: 11px;
+        }
+        .placeholder-text {
+            color: #444;
+            font-size: 18px;
+            letter-spacing: 2px;
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>◈ PANEL KONTROL</h1>
+        <span class="status-badge" id="connectionStatus">● MENUNGGU TARGET</span>
+    </div>
+
+    <div class="grid">
+        <div class="video-container">
+            <img id="liveFeed" src="" alt="Menunggu stream...">
+            <div class="video-overlay" id="streamStatus">● MENUNGGU</div>
+        </div>
+
+        <div class="panel">
+            <h3>⎔ KONTROL & LOG</h3>
+            
+            <div class="target-info">
+                <strong>Target:</strong> <span id="targetId">-</span><br>
+                <strong>Status:</strong> <span id="targetStatus" style="color:#ff4444;">● Putus</span><br>
+                <strong>Durasi:</strong> <span id="duration">00:00</span><br>
+                <strong>Frame:</strong> <span id="frameCounter">0</span>
+            </div>
+
+            <div class="controls">
+                <button class="btn active" id="btnStart">▶ MULAI</button>
+                <button class="btn danger" id="btnStop">■ HENTIKAN</button>
+                <button class="btn" id="btnSnapshot">◈ SNAPSHOT</button>
+                <button class="btn" id="btnClearLog">⌫ CLEAR</button>
+            </div>
+
+            <div style="margin-top:10px;">
+                <div style="font-size:11px; color:#555; margin-bottom:5px;">📸 SNAPSHOT:</div>
+                <div id="snapshotContainer"></div>
+            </div>
+
+            <div style="margin-top:10px;">
+                <div style="font-size:11px; color:#555; margin-bottom:5px;">📋 LOG:</div>
+                <div class="log" id="logContainer">
+                    <div class="entry"><span class="time">[INIT]</span> <span class="info">Sistem siap...</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">HAZ LAB v2.5.0 — SIMULASI KEAMANAN</div>
+
+    <script>
+        (function() {
+            const liveFeed = document.getElementById('liveFeed');
+            const logContainer = document.getElementById('logContainer');
+            const snapshotContainer = document.getElementById('snapshotContainer');
+            const durationEl = document.getElementById('duration');
+            const frameCounterEl = document.getElementById('frameCounter');
+            const targetStatus = document.getElementById('targetStatus');
+            const targetIdEl = document.getElementById('targetId');
+            const connectionStatus = document.getElementById('connectionStatus');
+            const streamStatus = document.getElementById('streamStatus');
+            
+            let startTime = null;
+            let timerInterval = null;
+            let frameCount = 0;
+            let lastFrameTime = 0;
+            let isActive = false;
+
+            // === BUAT BROADCAST CHANNEL ===
+            const channel = new BroadcastChannel('haz_camera_channel');
+
+            // === LOG ===
+            function addLog(message, type = 'info') {
+                const time = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = 'entry';
+                const cls = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+                entry.innerHTML = `<span class="time">[${time}]</span> <span class="${cls}">${message}</span>`;
+                logContainer.appendChild(entry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+
+            // === UPDATE DURASI ===
+            function updateDuration() {
+                if (timerInterval) clearInterval(timerInterval);
+                timerInterval = setInterval(() => {
+                    if (startTime) {
+                        const diff = Math.floor((Date.now() - startTime) / 1000);
+                        const mins = String(Math.floor(diff / 60)).padStart(2, '0');
+                        const secs = String(diff % 60).padStart(2, '0');
+                        durationEl.textContent = `${mins}:${secs}`;
+                    }
+                }, 1000);
+            }
+
+            // === TERIMA FRAME DARI TARGET ===
+            channel.onmessage = function(event) {
+                const data = event.data;
+                
+                if (data.type === 'frame') {
+                    // Tampilkan frame
+                    liveFeed.src = data.image;
+                    frameCount++;
+                    frameCounterEl.textContent = frameCount;
+                    lastFrameTime = Date.now();
+                    
+                    // Update status
+                    if (!isActive) {
+                        isActive = true;
+                        startTime = Date.now();
+                        targetStatus.textContent = '● Terhubung';
+                        targetStatus.style.color = '#00ffaa';
+                        streamStatus.textContent = '● LIVE';
+                        streamStatus.style.color = '#00ffaa';
+                        connectionStatus.textContent = '● ONLINE — 1 TARGET';
+                        connectionStatus.style.color = '#00ffaa';
+                        targetIdEl.textContent = data.targetId || 'TARGET-001';
+                        addLog(`📡 Stream diterima dari ${data.targetId || 'TARGET-001'}`, 'success');
+                        updateDuration();
+                    }
+                }
+                
+                if (data.type === 'target_online') {
+                    addLog(`🔗 Target ${data.targetId || 'TARGET-001'} online`, 'info');
+                    targetIdEl.textContent = data.targetId || 'TARGET-001';
+                    connectionStatus.textContent = '● TARGET DETEKSI';
+                    connectionStatus.style.color = '#66ccff';
+                }
+                
+                if (data.type === 'target_offline') {
+                    addLog('⚠️ Target offline', 'error');
+                    targetStatus.textContent = '● Putus';
+                    targetStatus.style.color = '#ff4444';
+                    streamStatus.textContent = '● PUTUS';
+                    streamStatus.style.color = '#ff4444';
+                    isActive = false;
+                }
+            };
+
+            // === KIRIM PERINTAH KE TARGET ===
+            function sendCommand(type) {
+                channel.postMessage({ type: type });
+                addLog(`📤 Perintah: ${type}`, 'info');
+            }
+
+            // === START ===
+            document.getElementById('btnStart').addEventListener('click', function() {
+                sendCommand('request_stream');
+                addLog('▶ Meminta stream dari target...', 'info');
+                // Kirim juga attacker online
+                channel.postMessage({ type: 'attacker_online' });
+                
+                // Timeout jika tidak ada frame dalam 5 detik
+                setTimeout(() => {
+                    if (frameCount === 0) {
+                        addLog('⚠️ Target tidak merespons. Pastikan target.html terbuka dan izinkan kamera.', 'error');
+                        targetStatus.textContent = '● Tidak merespons';
+                        targetStatus.style.color = '#ffaa00';
+                    }
+                }, 5000);
+            });
+
+            // === STOP ===
+            document.getElementById('btnStop').addEventListener('click', function() {
+                sendCommand('stop_stream');
+                isActive = false;
+                if (timerInterval) clearInterval(timerInterval);
+                durationEl.textContent = '00:00';
+                startTime = null;
+                targetStatus.textContent = '● Dihentikan';
+                targetStatus.style.color = '#ffaa00';
+                streamStatus.textContent = '● STOP';
+                streamStatus.style.color = '#ffaa00';
+                addLog('■ Stream dihentikan', 'info');
+            });
+
+            // === SNAPSHOT ===
+            document.getElementById('btnSnapshot').addEventListener('click', function() {
+                if (liveFeed.src && liveFeed.src !== '') {
+                    const img = document.createElement('img');
+                    img.src = liveFeed.src;
+                    snapshotContainer.prepend(img);
+                    addLog('📸 Snapshot diambil', 'success');
+                    while (snapshotContainer.children.length > 12) {
+                        snapshotContainer.removeChild(snapshotContainer.lastChild);
+                    }
+                } else {
+                    addLog('⚠️ Belum ada stream', 'error');
+                }
+            });
+
+            // === CLEAR LOG ===
+            document.getElementById('btnClearLog').addEventListener('click', function() {
+                logContainer.innerHTML = '';
+                addLog('🗑️ Log dibersihkan', 'info');
+            });
+
+            // === INISIALISASI ===
+            addLog('🚀 Panel siap', 'info');
+            addLog('📡 Channel Broadcast terbuka', 'info');
+            
+            // Kirim attacker online
+            channel.postMessage({ type: 'attacker_online' });
+
+            // Auto start setelah 1 detik
+            setTimeout(() => {
+                document.getElementById('btnStart').click();
+            }, 1000);
+
+        })();
+    </script>
+</body>
+</html>

